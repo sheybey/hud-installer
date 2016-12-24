@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import shutil
 import re
@@ -5,9 +7,8 @@ import ssl
 from zipfile import ZipFile
 from urllib.request import urlopen
 from io import BytesIO
-from sys import platform
 from os import path
-from sys import argv, exit
+from sys import argv, exit, platform
 from types import MethodType
 
 # this will be true even in posix-like environments on windows
@@ -142,6 +143,14 @@ class Hud:
                     )):
                         os.rmdir(source)
 
+        for source, dest in map(
+            lambda *s: (self.here(p) for p in s),
+            self.config.get('MOVE', [])
+        ):
+            if os.isdir(dest):
+                dest = os.path.join(dest, os.path.basename(source))
+            os.replace(source, dest)
+
         for filename, dest in self.config.get('INSTALL', []):
             filename = os.path.normpath(filename)
             dest = self.here(dest)
@@ -152,13 +161,6 @@ class Hud:
             else:
                 shutil.copy2(filename, dest)
 
-        for source, dest in map(
-            lambda *s: (self.here(p) for p in s),
-            self.config.get('MOVE', [])
-        ):
-            if os.isdir(dest):
-                dest = os.path.join(dest, os.path.basename(source))
-            os.replace(source, dest)
 
         for script, repl, filename in self.config.get('REGEX', []):
             with open(self.here(filename), 'r') as f:
