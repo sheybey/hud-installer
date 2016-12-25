@@ -10,6 +10,7 @@ from io import BytesIO
 from os import path
 from sys import argv, exit, platform
 from types import MethodType
+from tempfile import mkdtemp
 
 # this will be true even in posix-like environments on windows
 WINDOWS = (
@@ -42,8 +43,6 @@ CUSTOM = os.path.join(TF, 'tf', 'custom')
 # path to VPK executable
 VPK = os.path.join(TF, 'bin', 'vpk.exe' if WINDOWS else 'vpk')
 
-WD = os.path.abspath(os.environ.get('HUDDIR', os.path.curdir))
-
 
 class NoCfgException(Exception):
     def __init__(self, e, cfg_name):
@@ -61,15 +60,12 @@ class Hud:
     def __init__(self, name):
         self.name = name
 
-        self.repo = os.path.join(WD, name)
-
-        self.working = os.path.join(WD, name + '-nofonts')
-        self.working_fonts = os.path.join(WD, name + '-fonts')
+        self.wd = None
 
         self.config = {}
         cfg_name = name + '.cfg'
         try:
-            with open(os.path.join(WD, cfg_name)) as f:
+            with open(os.path.join(cfg_name)) as f:
                 exec(compile(f.read(), cfg_name, 'exec'), self.config)
         except Exception as e:
             raise NoCfgException(e, cfg_name)
@@ -86,35 +82,40 @@ class Hud:
         return os.path.join(self.working_fonts, os.path.normpath(path))
 
     def fetch(self):
-        self.cleanup()
+        self.clean()
+
+        self.wd = mkdtemp()
+
+        self.repo = os.path.join(self.wd, self.name)
+
+        self.working = os.path.join(self.wd, self.name + '-nofonts')
+        self.working_fonts = os.path.join(self.wd, self.name + '-fonts')
+
         with urlopen(self.zip_url) as z:
             # the BytesIO wrapper allows seek to work
             zf = ZipFile(BytesIO(z.read()))
 
         if self.config.get('ROOT', os.path.curdir) == os.path.curdir:
-            zf.extractall(WD)
-            os.rename(os.path.join(WD, self.repo_name), self.working)
+            zf.extractall(self.wd)
+            os.rename(os.path.join(self.wd, self.repo_name), self.working)
         else:
             prefix = self.repo_name + '/' + self.config['ROOT'] + '/'
             for info in zf.infolist():
                 if info.filename.startswith(prefix):
-                    zf.extract(info, WD)
+                    zf.extract(info, self.wd)
             os.rename(
-                os.path.join(WD, *prefix.split('/')),
-                os.path.join(WD, self.working)
+                os.path.join(self.wd, *prefix.split('/')),
+                os.path.join(self.wd, self.working)
             )
-            shutil.rmtree(os.path.join(WD, self.repo_name))
+            shutil.rmtree(os.path.join(self.wd, self.repo_name))
 
-    def cleanup(self):
-        if os.path.isdir(self.working):
-            shutil.rmtree(self.working)
-        if os.path.isdir(self.working_fonts):
-            shutil.rmtree(self.working_fonts)
-        if os.path.isfile(self.working + '.vpk'):
-            os.unlink(self.working + '.vpk')
+    def clean(self):
+        if self.wd is not None:
+            shutil.rmtree(self.wd)
+        self.wd = None
 
     def configure(self):
-        if not os.path.isdir(self.working):
+        if self.wd is None:
             self.fetch()
 
         if self.config.get('VPK', True):
@@ -128,7 +129,7 @@ class Hud:
                 for name in files:
                     if name.split(".")[-1].lower() in font_extensions:
                         fonts.append((folder, name))
-            os.chdir(WD)
+            os.chdir(self.wd)
 
             if len(fonts) != 0:
                 os.mkdir(self.working_fonts)
@@ -161,7 +162,6 @@ class Hud:
             else:
                 shutil.copy2(filename, dest)
 
-
         for script, repl, filename in self.config.get('REGEX', []):
             with open(self.here(filename), 'r') as f:
                 contents = f.read()
@@ -175,7 +175,8 @@ class Hud:
                 os.unlink(filename)
 
     def install(self):
-        if not os.path.isdir(self.working):
+        # configure can be intentionally skipped by calling fetch and install.
+        if self.wd is None:
             self.configure()
         self.uninstall()
 
@@ -214,14 +215,25 @@ class Hud:
 __all__ = ['Hud', 'NoCfgException']
 
 if __name__ == '__main__':
-    # any method on the Hud class can be called directly with this interface.
     if len(argv) != 3:
-        print('usage: {} <operation> <hud>'.format(argv[0]))
-        print('\tYou probably want to run {} (un)install <hud>.'.format(
-            argv[0])
-        )
-        print('\tRead the source code for other supported operations.')
+        print('usage: {} (install|uninstall) <hud>'.format(argv[0]))
         exit(1)
+
+    print('Constants:')
+    print('os.name:', repr(os.name))
+    print('sys.platform:', repr(platform))
+    print('WINDOWS:', repr(WINDOWS), end='\n\n')
+
+    print('TF:', repr(TF))
+    print('os.path.isdir(TF):', repr(os.path.isdir(TF)), end='\n\n')
+
+    print('CUSTOM:', repr(CUSTOM))
+    print('os.path.isdir(CUSTOM):', repr(os.path.isdir(CUSTOM)), end='\n\n')
+
+    print('VPK:', repr(VPK))
+    print('os.path.isfile(VPK):', repr(os.path.isfile(VPK)), end='\n\n')
+
+    input('Press enter to continue')
 
     operation, hud_name = argv[1:]
     try:
@@ -230,10 +242,34 @@ if __name__ == '__main__':
         print('fatal: ' + str(e))
         exit(1)
 
-    function = getattr(hud, operation, None)
-    if not isinstance(function, MethodType):
-        print('fatal: invalid operation ' + operation)
-        exit()
+    if operation == 'install':
+        print('fetching and unpacking zip file...')
+        hud.fetch()
 
-    print('running {} on {}...'.format(operation, hud_name))
-    function()
+        print('temporary directory:', hud.wd)
+
+        print('applying configuration...')
+        hud.configure()
+
+        dest = os.path.join(CUSTOM, os.path.basename(hud.working))
+        if os.path.exists(dest) or os.path.exists(dest + '.vpk'):
+            if not input(
+                'Existing installation will be replaced. Continue? (y/n) '
+            ).strip().lower().startswith('y'):
+                print('Abort. Cleaning up...')
+                hud.clean()
+                exit(1)
+
+        print('installing...')
+        hud.install()
+
+        print('cleaning up...')
+        hud.clean()
+
+    elif operation == 'uninstall':
+        print('uninstalling...')
+        hud.uninstall()
+
+    else:
+        print('fatal: invalid operation', operation)
+        exit(1)
