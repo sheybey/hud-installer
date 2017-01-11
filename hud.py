@@ -23,12 +23,12 @@ WINDOWS = (
 TF = os.path.normpath(os.path.join(
     # while native windows python normalizes environment variable names to
     # uppercase, msys does not. this capitalization works on my machine
-    os.environ.get('ProgramFiles(x86)', os.environ['PROGRAMFILES'])
+    os.environ.get('ProgramFiles(x86)', os.environ['PROGRAMFILES'], 'Steam')
     if WINDOWS else
-    os.path.join(os.environ['HOME'], '.local', 'share'),
+    os.path.join(os.environ['HOME'], '.steam', 'steam'),
 
     # steamapps is camelcase on windows, but not linux
-    'Steam', 'steamapps', 'common', 'Team Fortress 2'
+    'steamapps', 'common', 'Team Fortress 2'
 ))
 
 if WINDOWS and os.name == 'posix':
@@ -41,7 +41,7 @@ if WINDOWS and os.name == 'posix':
 # path to custom directory
 CUSTOM = os.path.join(TF, 'tf', 'custom')
 # path to VPK executable
-VPK = os.path.join(TF, 'bin', 'vpk.exe' if WINDOWS else 'vpk')
+VPK = os.path.join(TF, 'bin', 'vpk.exe' if WINDOWS else 'vpk_linux32')
 
 
 class NoCfgException(Exception):
