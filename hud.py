@@ -9,7 +9,6 @@ from urllib.request import urlopen
 from io import BytesIO
 from os import path
 from sys import argv, exit, platform
-from types import MethodType
 from tempfile import mkdtemp
 
 # this will be true even in posix-like environments on windows
@@ -19,8 +18,9 @@ WINDOWS = (
     platform == 'cygwin'
 )
 
-# path to TF2
-TF = os.path.normpath(os.path.join(
+
+# path to steamapps folder
+STEAMAPPS = os.path.normpath(os.path.join(
     # while native windows python normalizes environment variable names to
     # uppercase, msys does not. this capitalization works on my machine
     os.environ.get('ProgramFiles(x86)', os.environ['PROGRAMFILES'], 'Steam')
@@ -28,8 +28,11 @@ TF = os.path.normpath(os.path.join(
     os.path.join(os.environ['HOME'], '.steam', 'steam'),
 
     # steamapps is camelcase on windows, but not linux
-    'steamapps', 'common', 'Team Fortress 2'
+    'steamapps'
 ))
+
+# path to TF2
+TF = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
 
 if WINDOWS and os.name == 'posix':
     TF = TF.replace('\\', '/')
