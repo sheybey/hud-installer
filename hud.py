@@ -7,7 +7,6 @@ import ssl
 from zipfile import ZipFile
 from urllib.request import urlopen
 from io import BytesIO
-from os import path
 from sys import argv, exit, platform
 from tempfile import mkdtemp
 
@@ -23,7 +22,10 @@ WINDOWS = (
 STEAMAPPS = os.path.normpath(os.path.join(
     # while native windows python normalizes environment variable names to
     # uppercase, msys does not. this capitalization works on my machine
-    os.environ.get('ProgramFiles(x86)', os.environ['PROGRAMFILES'], 'Steam')
+    os.path.join(
+        os.environ.get('ProgramFiles(x86)', os.environ['PROGRAMFILES']),
+        'Steam'
+    )
     if WINDOWS else
     os.path.join(os.environ['HOME'], '.steam', 'steam'),
 
