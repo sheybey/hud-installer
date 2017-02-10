@@ -10,7 +10,9 @@ setup(
             'icon_resources': [(1, 'tyrone.ico')],
             'other_resources': [
                 (RT_MANIFEST, 1, open('manifest.xml').read())
-            ]
+            ],
+            'version': '0.2.2.1',
+            'description': 'Scriptable HUD installer'
         }
     ],
     zipfile=None,
