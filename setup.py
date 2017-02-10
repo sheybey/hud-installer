@@ -1,11 +1,16 @@
 from distutils.core import setup
 import py2exe
 
+RT_MANIFEST = 24
+
 setup(
     console=[
         {
             'script': 'hud.py',
-            'icon_resources': [(1, 'tyrone.ico')]
+            'icon_resources': [(1, 'tyrone.ico')],
+            'other_resources': [
+                (RT_MANIFEST, 1, open('manifest.xml').read())
+            ]
         }
     ],
     zipfile=None,
