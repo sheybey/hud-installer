@@ -239,17 +239,19 @@ if __name__ == '__main__':
         library_folders = os.path.join(STEAMAPPS, 'libraryfolders.vdf')
         try:
             with open(library_folders) as f:
-                keyvalues = vdf.parse(f)
+                folders = vdf.parse(f)['LibraryFolders']
         except OSError as e:
             fatal('unable to open {}: {}'.format(library_folders, e))
         except SyntaxError as e:
-            fatal('error while parsing {}: {}'.format(library_folders. e))
+            fatal('error while parsing {}: {}'.format(library_folders, e))
+        except KeyError:
+            fatal('{} does not contain LibraryFolders key'.format(library_folders))
 
-        for key in keyvalues:
+        for key in folders:
             if key.isnumeric():
-                print('searching library {}'.format(keyvalues[key]))
+                print('searching library {}'.format(folders[key]))
                 STEAMAPPS = os.path.join(
-                    os.path.normpath(keyvalues[key]),
+                    os.path.normpath(folders[key]),
                     'steamapps'
                 )
                 TF = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
@@ -258,7 +260,7 @@ if __name__ == '__main__':
                     TF, 'bin',
                     'vpk.exe' if WINDOWS else 'vpk_linux32'
                 )
-                if os.isdir(TF):
+                if os.path.isdir(TF):
                     break
         else:
             fatal('couldn\'t find TF2')
