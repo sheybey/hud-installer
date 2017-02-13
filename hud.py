@@ -4,11 +4,18 @@ import os
 import shutil
 import re
 import ssl
+import vdf
 from zipfile import ZipFile
 from urllib.request import urlopen
 from io import BytesIO
 from sys import argv, exit, platform
 from tempfile import mkdtemp
+
+
+def fatal(message):
+    print('fatal:', message)
+    exit(1)
+
 
 # this will be true even in posix-like environments on windows
 WINDOWS = (
@@ -16,7 +23,6 @@ WINDOWS = (
     platform == 'msys' or
     platform == 'cygwin'
 )
-
 
 # path to steamapps folder
 STEAMAPPS = os.path.normpath(os.path.join(
@@ -224,28 +230,46 @@ if __name__ == '__main__':
         print('usage: {} (install|uninstall) <hud>'.format(argv[0]))
         exit(1)
 
-    print('Constants:')
-    print('os.name:', repr(os.name))
-    print('sys.platform:', repr(platform))
-    print('WINDOWS:', repr(WINDOWS), end='\n\n')
+    if not os.path.isdir(STEAMAPPS):
+        fatal('can\'t find steam install at {}'.format(STEAMAPPS))
 
-    print('TF:', repr(TF))
-    print('os.path.isdir(TF):', repr(os.path.isdir(TF)), end='\n\n')
+    if not os.path.isdir(TF):
+        print('tf2 not in default path, searching...')
 
-    print('CUSTOM:', repr(CUSTOM))
-    print('os.path.isdir(CUSTOM):', repr(os.path.isdir(CUSTOM)), end='\n\n')
+        library_folders = os.path.join(STEAMAPPS, 'libraryfolders.vdf')
+        try:
+            with open(library_folders) as f:
+                keyvalues = vdf.parse(f)
+        except OSError as e:
+            fatal('unable to open {}: {}'.format(library_folders, e))
+        except SyntaxError as e:
+            fatal('error while parsing {}: {}'.format(library_folders. e))
 
-    print('VPK:', repr(VPK))
-    print('os.path.isfile(VPK):', repr(os.path.isfile(VPK)), end='\n\n')
+        for key in keyvalues:
+            if key.isnumeric():
+                print('searching library {}'.format(keyvalues[key]))
+                STEAMAPPS = os.path.join(
+                    os.path.normpath(keyvalues[key]),
+                    'steamapps'
+                )
+                TF = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
+                CUSTOM = os.path.join(TF, 'tf', 'custom')
+                VPK = os.path.join(
+                    TF, 'bin',
+                    'vpk.exe' if WINDOWS else 'vpk_linux32'
+                )
+                if os.isdir(TF):
+                    break
+        else:
+            fatal('couldn\'t find TF2')
 
-    input('Press enter to continue')
+    print('found TF2 at', TF)
 
     operation, hud_name = argv[1:]
     try:
         hud = Hud(hud_name)
     except NoCfgException as e:
-        print('fatal: ' + str(e))
-        exit(1)
+        fatal(str(e))
 
     if operation == 'install':
         print('fetching and unpacking zip file...')
@@ -276,5 +300,4 @@ if __name__ == '__main__':
         hud.uninstall()
 
     else:
-        print('fatal: invalid operation', operation)
-        exit(1)
+        fatal('invalid operation {}'.format(operation))
