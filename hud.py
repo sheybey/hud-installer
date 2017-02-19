@@ -3,59 +3,13 @@
 import os
 import shutil
 import re
-import ssl
-import vdf
 from zipfile import ZipFile
 from urllib.request import urlopen
 from io import BytesIO
-from sys import argv, exit, platform
 from tempfile import mkdtemp
 
 
-def fatal(message):
-    print('fatal:', message)
-    exit(1)
-
-
-# this will be true even in posix-like environments on windows
-WINDOWS = (
-    os.name == 'nt' or
-    platform == 'msys' or
-    platform == 'cygwin'
-)
-
-# path to steamapps folder
-STEAMAPPS = os.path.normpath(os.path.join(
-    # while native windows python normalizes environment variable names to
-    # uppercase, msys does not. this capitalization works on my machine
-    os.path.join(
-        os.environ.get('ProgramFiles(x86)', os.environ['PROGRAMFILES']),
-        'Steam'
-    )
-    if WINDOWS else
-    os.path.join(os.environ['HOME'], '.steam', 'steam'),
-
-    # steamapps is camelcase on windows, but not linux
-    'steamapps'
-))
-
-# path to TF2
-TF = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
-
-if WINDOWS and os.name == 'posix':
-    TF = TF.replace('\\', '/')
-    if platform == 'msys':
-        TF = re.sub(r'([a-zA-Z]):/', r'/\1/', TF)
-    elif platform == 'cygwin':
-        TF = re.sub(r'([a-zA-Z]):/', r'/cygdrive/\1/', TF)
-
-# path to custom directory
-CUSTOM = os.path.join(TF, 'tf', 'custom')
-# path to VPK executable
-VPK = os.path.join(TF, 'bin', 'vpk.exe' if WINDOWS else 'vpk_linux32')
-
-
-class NoCfgException(Exception):
+class NoCfgError(Exception):
     def __init__(self, e, cfg_name):
         super().__init__(e)
         self.cfg_name = cfg_name
@@ -68,8 +22,9 @@ class NoCfgException(Exception):
 
 
 class Hud:
-    def __init__(self, name):
+    def __init__(self, name, destdir, vpk_exe=None):
         self.name = name
+        self.destdir = destdir
 
         self.wd = None
 
@@ -79,7 +34,12 @@ class Hud:
             with open(os.path.join(cfg_name)) as f:
                 exec(compile(f.read(), cfg_name, 'exec'), self.config)
         except Exception as e:
-            raise NoCfgException(e, cfg_name)
+            raise NoCfgError(e, cfg_name)
+
+        if self.config.get('VPK', True):
+            if vpk_exe is None:
+                raise ValueError('no vpk executable')
+            self.vpk_exe = vpk_exe
 
         self.zip_url = 'https://github.com/{}/archive/master.zip'.format(
             self.config['GITHUB']
@@ -195,23 +155,26 @@ class Hud:
             vpk = self.working + '.vpk'
             if os.path.isfile(vpk):
                 os.unlink(vpk)
-            check_call([VPK, self.working])
-            shutil.copy2(self.working + '.vpk', CUSTOM)
+            check_call([self.vpk_exe, self.working])
+            shutil.copy2(self.working + '.vpk', self.destdir)
         else:
             shutil.copytree(
                 self.working,
-                os.path.join(CUSTOM, os.path.basename(self.working))
+                os.path.join(self.destdir, os.path.basename(self.working))
             )
 
         if os.path.exists(self.working_fonts):
             shutil.copytree(
                 self.working_fonts,
-                os.path.join(CUSTOM, os.path.basename(self.working_fonts))
+                os.path.join(
+                    self.destdir,
+                    os.path.basename(self.working_fonts)
+                )
             )
 
     def uninstall(self):
         for suffix in '-nofonts', '-fonts':
-            folder = os.path.join(CUSTOM, self.name + suffix)
+            folder = os.path.join(self.destdir, self.name + suffix)
             vpk = folder + '.vpk'
 
             if os.path.isfile(vpk):
@@ -223,83 +186,4 @@ class Hud:
                 else:
                     os.unlink(folder)
 
-__all__ = ['Hud', 'NoCfgException']
-
-if __name__ == '__main__':
-    if len(argv) != 3:
-        print('usage: {} (install|uninstall) <hud>'.format(argv[0]))
-        exit(1)
-
-    if not os.path.isdir(STEAMAPPS):
-        fatal('can\'t find steam install at {}'.format(STEAMAPPS))
-
-    if not os.path.isdir(TF):
-        print('tf2 not in default path, searching...')
-
-        library_folders = os.path.join(STEAMAPPS, 'libraryfolders.vdf')
-        try:
-            with open(library_folders) as f:
-                folders = vdf.parse(f)['LibraryFolders']
-        except OSError as e:
-            fatal('unable to open {}: {}'.format(library_folders, e))
-        except SyntaxError as e:
-            fatal('error while parsing {}: {}'.format(library_folders, e))
-        except KeyError:
-            fatal('{} does not contain LibraryFolders key'.format(library_folders))
-
-        for key in folders:
-            if key.isnumeric():
-                print('searching library {}'.format(folders[key]))
-                STEAMAPPS = os.path.join(
-                    os.path.normpath(folders[key]),
-                    'steamapps'
-                )
-                TF = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
-                CUSTOM = os.path.join(TF, 'tf', 'custom')
-                VPK = os.path.join(
-                    TF, 'bin',
-                    'vpk.exe' if WINDOWS else 'vpk_linux32'
-                )
-                if os.path.isdir(TF):
-                    break
-        else:
-            fatal('couldn\'t find TF2')
-
-    print('found TF2 at', TF)
-
-    operation, hud_name = argv[1:]
-    try:
-        hud = Hud(hud_name)
-    except NoCfgException as e:
-        fatal(str(e))
-
-    if operation == 'install':
-        print('fetching and unpacking zip file...')
-        hud.fetch()
-
-        print('temporary directory:', hud.wd)
-
-        print('applying configuration...')
-        hud.configure()
-
-        dest = os.path.join(CUSTOM, os.path.basename(hud.working))
-        if os.path.exists(dest) or os.path.exists(dest + '.vpk'):
-            if not input(
-                'Existing installation will be replaced. Continue? (y/n) '
-            ).strip().lower().startswith('y'):
-                print('Abort. Cleaning up...')
-                hud.clean()
-                exit(1)
-
-        print('installing...')
-        hud.install()
-
-        print('cleaning up...')
-        hud.clean()
-
-    elif operation == 'uninstall':
-        print('uninstalling...')
-        hud.uninstall()
-
-    else:
-        fatal('invalid operation {}'.format(operation))
+__all__ = ['Hud', 'NoCfgError']

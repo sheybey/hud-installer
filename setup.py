@@ -6,12 +6,12 @@ RT_MANIFEST = 24
 setup(
     console=[
         {
-            'script': 'hud.py',
+            'script': 'main.py',
             'icon_resources': [(1, 'tyrone.ico')],
             'other_resources': [
                 (RT_MANIFEST, 1, open('manifest.xml').read())
             ],
-            'version': '0.3.1.1',
+            'version': '0.4.1.1',
             'description': 'Scriptable HUD installer'
         }
     ],
@@ -22,7 +22,9 @@ setup(
             'unbuffered': True,
             'compressed': True,
             'includes': [
-                'imp'
+                'imp',
+                'ssl',
+                'winprocs'
             ],
             'excludes': [
                 '_bz2',
