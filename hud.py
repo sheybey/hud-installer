@@ -116,10 +116,10 @@ class Hud:
                         os.rmdir(source)
 
         for source, dest in map(
-            lambda *s: (self.here(p) for p in s),
+            lambda pair: map(self.here, pair),
             self.config.get('MOVE', [])
         ):
-            if os.isdir(dest):
+            if os.path.isdir(dest):
                 dest = os.path.join(dest, os.path.basename(source))
             os.replace(source, dest)
 
