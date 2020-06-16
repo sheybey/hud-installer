@@ -163,9 +163,8 @@ class Hud:
                             if m is not None
                         ):
                             base_refs.add(os.path.realpath(os.path.join(
-                                folder,
-                                os.path.normpath(ref.replace('\\', os.sep))
-                            )))
+                                folder, os.path.normpath(
+                                    ref.replace('\\', os.sep).strip()))))
 
             print('creating missing files...')
             for ref in base_refs:
