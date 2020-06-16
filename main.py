@@ -1,19 +1,19 @@
 import os
 import vdf
-from hud import Hud, NoCfgError
-from sys import argv, exit, platform
+import sys
 
+from hud import Hud, NoCfgError
 
 def fatal(message):
     print('fatal:', message)
-    exit(1)
+    sys.exit(1)
 
 
 # this will be true even in posix-like environments on windows
 WINDOWS = (
     os.name == 'nt' or
-    platform == 'msys' or
-    platform == 'cygwin'
+    sys.platform == 'msys' or
+    sys.platform == 'cygwin'
 )
 
 # path to steamapps folder
@@ -27,8 +27,8 @@ WINDOWS = (
 #     if WINDOWS else
 #     os.path.join(os.environ['HOME'], '.steam', 'steam'),
 
-#     # steamapps is camelcase on windows, but not linux
-#     'steamapps'
+#     # steamapps is camelcase on linux
+#     'SteamApps'
 # ))
 if WINDOWS:
     from winprocs import all_pids, process_exe
@@ -45,33 +45,29 @@ if WINDOWS:
 else:
     STEAMAPPS = os.path.join(
         os.environ['HOME'],
-        '.steam', 'steam', 'steamapps'
+        '.steam', 'steam', 'SteamApps'
     )
 
-# path to TF2
-TF = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
+# default path to TF2
+TF_DEFAULT = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
 
 if WINDOWS and os.name == 'posix':
     TF = TF.replace('\\', '/')
-    if platform == 'msys':
+    if sys.platform == 'msys':
         TF = re.sub(r'([a-zA-Z]):/', r'/\1/', TF)
-    elif platform == 'cygwin':
+    elif sys.platform == 'cygwin':
         TF = re.sub(r'([a-zA-Z]):/', r'/cygdrive/\1/', TF)
 
-# path to custom directory
-CUSTOM = os.path.join(TF, 'tf', 'custom')
-# path to VPK executable
-VPK = os.path.join(TF, 'bin', 'vpk.exe' if WINDOWS else 'vpk_linux32')
-
-if len(argv) != 3:
+if len(sys.argv) != 3:
     print('usage: {} (install|uninstall) <hud>'.format(argv[0]))
-    exit(1)
+    sys.exit(1)
 
 if not os.path.isdir(STEAMAPPS):
     fatal('can\'t find steam install at {}'.format(STEAMAPPS))
 
+TF = TF_DEFAULT
 if not os.path.isdir(TF):
-    print('tf2 not in default path, searching...')
+    print('TF2 not in default path, searching...')
 
     library_folders = os.path.join(STEAMAPPS, 'libraryfolders.vdf')
     try:
@@ -92,19 +88,20 @@ if not os.path.isdir(TF):
                 'steamapps'
             )
             TF = os.path.join(STEAMAPPS, 'common', 'Team Fortress 2')
-            CUSTOM = os.path.join(TF, 'tf', 'custom')
-            VPK = os.path.join(
-                TF, 'bin',
-                'vpk.exe' if WINDOWS else 'vpk_linux32'
-            )
             if os.path.isdir(TF):
                 break
     else:
         fatal('couldn\'t find TF2')
 
+# path to custom directory
+CUSTOM = os.path.join(TF, 'tf', 'custom')
+# path to VPK executable
+VPK = os.path.join(TF, 'bin', 'vpk.exe' if WINDOWS else 'vpk_linux32')
+
+
 print('found TF2 at', TF)
 
-operation, hud_name = argv[1:]
+operation, hud_name = sys.argv[1:]
 try:
     if os.path.isfile(VPK):
         hud = Hud(hud_name, CUSTOM, VPK)

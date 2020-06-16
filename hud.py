@@ -7,6 +7,7 @@ from zipfile import ZipFile
 from urllib.request import urlopen
 from io import BytesIO
 from tempfile import mkdtemp
+from subprocess import check_call
 
 
 class NoCfgError(Exception):
@@ -59,7 +60,7 @@ class Hud:
 
         self.repo = os.path.join(self.wd, self.name)
 
-        self.working = os.path.join(self.wd, self.name + '-nofonts')
+        self.working = os.path.join(self.wd, self.name)
         self.working_fonts = os.path.join(self.wd, self.name + '-fonts')
 
         with urlopen(self.zip_url) as z:
@@ -89,18 +90,20 @@ class Hud:
         if self.wd is None:
             self.fetch()
 
-        if self.config.get('VPK', True):
+        make_vpk = self.config.get('VPK', True)
+        if make_vpk:
             fonts = []
             font_extensions = ['ttf', 'otf', 'fon']
-            os.chdir(self.working)
-            for folder, dirs, files in os.walk('.'):
+            for folder, dirs, files in os.walk(self.working):
                 if ".git" in dirs:
                     shutil.rmtree(os.path.join(folder, ".git"))
                     dirs.remove(".git")
                 for name in files:
                     if name.split(".")[-1].lower() in font_extensions:
-                        fonts.append((folder, name))
-            os.chdir(self.wd)
+                        fonts.append((
+                            os.path.relpath(folder, start=self.working),
+                            name
+                        ))
 
             if len(fonts) != 0:
                 os.mkdir(self.working_fonts)
@@ -145,6 +148,33 @@ class Hud:
             elif os.path.exists(filename):
                 os.unlink(filename)
 
+        if self.config.get('CREATE_MISSING', make_vpk):
+            print('parsing and normalizing #base references...')
+            base_refs = set()
+            for folder, subdirs, files in os.walk(self.working):
+                # for every .res file
+                for res in (f for f in files if f.lower().endswith('.res')):
+                    with open(os.path.join(folder, res), 'r') as file:
+                        # normalize all base refs and deduplicate them
+                        for ref in (
+                            m.group(1) for m in (
+                                re.match(r'^\s*#base\s*\"?([^"]+)', l)
+                                for l in file)
+                            if m is not None
+                        ):
+                            base_refs.add(os.path.realpath(os.path.join(
+                                folder,
+                                os.path.normpath(ref.replace('\\', os.sep))
+                            )))
+
+            print('creating missing files...')
+            for ref in base_refs:
+                if not os.path.exists(ref):
+                    print('creating ref', os.path.basename(ref))
+                    os.makedirs(os.path.dirname(ref), exist_ok=True)
+                    with open(ref, 'a'):
+                        pass
+
     def install(self):
         # configure can be intentionally skipped by calling fetch and install.
         if self.wd is None:
@@ -152,10 +182,16 @@ class Hud:
         self.uninstall()
 
         if self.config.get('VPK', True):
+            print('compiling vpk...')
             vpk = self.working + '.vpk'
             if os.path.isfile(vpk):
                 os.unlink(vpk)
-            check_call([self.vpk_exe, self.working])
+            env = os.environ.copy()
+            # this environment variable is necessary on linux and harmless on
+            # windows
+            env['LD_LIBRARY_PATH'] = os.path.abspath(
+                os.path.dirname(self.vpk_exe))
+            check_call([self.vpk_exe, self.working], env=env)
             shutil.copy2(self.working + '.vpk', self.destdir)
         else:
             shutil.copytree(
