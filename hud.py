@@ -148,32 +148,6 @@ class Hud:
             elif os.path.exists(filename):
                 os.unlink(filename)
 
-        if self.config.get('CREATE_MISSING', make_vpk):
-            print('parsing and normalizing #base references...')
-            base_refs = set()
-            for folder, subdirs, files in os.walk(self.working):
-                # for every .res file
-                for res in (f for f in files if f.lower().endswith('.res')):
-                    with open(os.path.join(folder, res), 'r') as file:
-                        # normalize all base refs and deduplicate them
-                        for ref in (
-                            m.group(1) for m in (
-                                re.match(r'^\s*#base\s*\"?([^"]+)', l)
-                                for l in file)
-                            if m is not None
-                        ):
-                            base_refs.add(os.path.realpath(os.path.join(
-                                folder, os.path.normpath(
-                                    ref.replace('\\', os.sep).strip()))))
-
-            print('creating missing files...')
-            for ref in base_refs:
-                if not os.path.exists(ref):
-                    print('creating ref', os.path.basename(ref))
-                    os.makedirs(os.path.dirname(ref), exist_ok=True)
-                    with open(ref, 'a'):
-                        pass
-
     def install(self):
         # configure can be intentionally skipped by calling fetch and install.
         if self.wd is None:
