@@ -208,17 +208,12 @@ class Hud:
             )
 
     def uninstall(self):
-        for suffix in '-nofonts', '-fonts':
-            folder = os.path.join(self.destdir, self.name + suffix)
-            vpk = folder + '.vpk'
-
-            if os.path.isfile(vpk):
-                os.unlink(vpk)
-
-            if os.path.exists(folder):
-                if os.path.isdir(folder):
-                    shutil.rmtree(folder)
-                else:
-                    os.unlink(folder)
+        folder = os.path.join(self.destdir, self.name)
+        for dest in [folder, folder + '-nofonts', folder + '.vpk']
+        if os.path.exists(folder):
+            if os.path.isdir(folder):
+                shutil.rmtree(folder)
+            else:
+                os.unlink(folder)
 
 __all__ = ['Hud', 'NoCfgError']
