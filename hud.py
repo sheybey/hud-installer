@@ -183,11 +183,11 @@ class Hud:
 
     def uninstall(self):
         folder = os.path.join(self.destdir, self.name)
-        for dest in [folder, folder + '-nofonts', folder + '.vpk']
-        if os.path.exists(folder):
-            if os.path.isdir(folder):
-                shutil.rmtree(folder)
-            else:
-                os.unlink(folder)
+        for dest in [folder, folder + '-nofonts', folder + '.vpk']:
+            if os.path.exists(dest):
+                if os.path.isdir(dest):
+                    shutil.rmtree(dest)
+                else:
+                    os.unlink(dest)
 
 __all__ = ['Hud', 'NoCfgError']
