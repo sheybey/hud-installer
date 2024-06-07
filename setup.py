@@ -1,72 +1,66 @@
-from distutils.core import setup
-import py2exe
+import os
+from cx_Freeze import setup, Executable
 
-RT_MANIFEST = 24
+# Dependencies are automatically detected, but it might need
+# fine tuning.
+build_options = {
+    'packages': [
+        'imp',
+        'ssl',
+        'winprocs'
+    ],
+    'excludes': [
+        '_bz2',
+        'bz2',
+        '_lzma',
+        'lzma',
+        '_multiprocessing',
+        'multiprocessing',
+        'pyexpat',
+        '_compat_pickle',
+        'pickle',
+        'distutils',
+        'setuptools',
+        'html',
+        'logging',
+        'pydoc_data',
+        'unittest',
+        'xml',
+        '_strptime',
+        'argparse',
+        'bdb',
+        'cmd',
+        'difflib',
+        'dis',
+        'doctest',
+        'ftplib',
+        'getopt',
+        'getpass',
+        'gettext',
+        'glob',
+        'gzip',
+        'inspect',
+        'mimetypes',
+        'optparse'
+    ],
+    'include_files': [
+        'assets',
+        'budhud.cfg'
+    ]
+}
+
+if os.name == 'nt':
+    exe_args = {'icon': 'tyrone.ico', 'manifest': 'manifest.xml'}
+else:
+    exe_args = {'icon': 'tyrone-248.png'}
+
+executables = [Executable('main.py', **exe_args)]
+
 
 setup(
-    console=[
-        {
-            'script': 'main.py',
-            'icon_resources': [(1, 'tyrone.ico')],
-            'other_resources': [
-                (RT_MANIFEST, 1, open('manifest.xml').read())
-            ],
-            'version': '0.4.1.1',
-            'description': 'Scriptable HUD installer'
-        }
-    ],
-    zipfile=None,
-    options={
-        'py2exe': {
-            'bundle_files': 1,
-            'unbuffered': True,
-            'compressed': True,
-            'includes': [
-                'imp',
-                'ssl',
-                'winprocs'
-            ],
-            'excludes': [
-                '_bz2',
-                'bz2',
-                '_lzma',
-                'lzma',
-                '_multiprocessing',
-                'multiprocessing',
-                'pyexpat',
-                'select',
-                '__future__',
-                '_compat_pickle',
-                'pickle',
-                '_dummy_thread',
-                'threading',
-                'distutils',
-                'html',
-                'logging',
-                'pydoc_data',
-                'unittest',
-                'xml',
-                '_strptime',
-                'argparse',
-                'bdb',
-                'cmd',
-                'difflib',
-                'dis',
-                'doctest',
-                'dummy_threading',
-                'ftplib',
-                'getopt',
-                'getpass',
-                'gettext',
-                'glob',
-                'gzip',
-                'inspect',
-                'linecache',
-                'mimetypes',
-                'optparse',
-                'selectors',
-                'traceback'
-            ]
-        }
-    }
+    name='HUD Installer',
+    version = '0.5',
+    description = 'Scriptable HUD installer',
+    options = dict(build_exe=build_options),
+    executables = executables,
 )

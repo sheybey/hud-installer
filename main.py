@@ -1,10 +1,11 @@
 import os
+from typing import Never
 import vdf
 import sys
 
-from hud import Hud, NoCfgError
+from hud import Hud, NoConfigError
 
-def fatal(message):
+def fatal(message) -> Never:
     print('fatal:', message)
     sys.exit(1)
 
@@ -16,6 +17,7 @@ WINDOWS = (
     sys.platform == 'cygwin'
 )
 
+STEAMAPPS = None
 # path to steamapps folder
 # STEAMAPPS = os.path.normpath(os.path.join(
 #     # while native windows python normalizes environment variable names to
@@ -58,9 +60,30 @@ if WINDOWS and os.name == 'posix':
     elif sys.platform == 'cygwin':
         TF = re.sub(r'([a-zA-Z]):/', r'/cygdrive/\1/', TF)
 
-if len(sys.argv) != 3:
-    print('usage: {} (install|uninstall) <hud>'.format(argv[0]))
+if len(sys.argv) < 3:
+    print('usage: {} (install|uninstall) [OPTIONS] <hud>'.format(sys.argv[0]))
     sys.exit(1)
+
+options = {'n': False, 'h': False}
+
+operation, *args = sys.argv[1:]
+hud_name = None
+
+for arg in args:
+    if arg[0] == '-':
+        for flag in arg[1:]:
+            if flag in options:
+                options[flag] = True
+            else:
+                fatal(f'unrecognized option: {flag}')
+    else:
+        if hud_name is None:
+            hud_name = arg
+        else:
+            fatal('only one hud can be installed at once')
+
+if hud_name is None:
+    fatal('no hud specified')
 
 if not os.path.isdir(STEAMAPPS):
     fatal('can\'t find steam install at {}'.format(STEAMAPPS))
@@ -75,10 +98,10 @@ if not os.path.isdir(TF):
             folders = vdf.parse(f)['LibraryFolders']
     except OSError as e:
         fatal('unable to open {}: {}'.format(library_folders, e))
-    except SyntaxError as e:
-        fatal('error while parsing {}: {}'.format(library_folders, e))
     except KeyError:
         fatal(library_folders + ' does not contain LibraryFolders key')
+    except Exception as e:
+        fatal('error while parsing {}: {}'.format(library_folders, e))
 
     for key in folders:
         if key.isnumeric():
@@ -101,14 +124,10 @@ VPK = os.path.join(TF, 'bin', 'vpk.exe' if WINDOWS else 'vpk_linux32')
 
 print('found TF2 at', TF)
 
-operation, hud_name = sys.argv[1:]
-try:
-    if os.path.isfile(VPK):
-        hud = Hud(hud_name, CUSTOM, VPK)
-    else:
-        hud = Hud(hud_name, CUSTOM)
-except NoCfgError as e:
-    fatal(str(e))
+if os.path.isfile(VPK):
+    hud = Hud(hud_name, CUSTOM, VPK)
+else:
+    hud = Hud(hud_name, CUSTOM)
 
 if operation == 'install':
     print('fetching and unpacking zip file...')
@@ -116,8 +135,9 @@ if operation == 'install':
 
     print('temporary directory:', hud.wd)
 
-    print('applying configuration...')
-    hud.configure()
+    if not options['n']:
+        print('applying configuration...')
+        hud.configure()
 
     dest = os.path.join(CUSTOM, os.path.basename(hud.working))
     if os.path.exists(dest) or os.path.exists(dest + '.vpk'):

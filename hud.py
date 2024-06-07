@@ -10,16 +10,10 @@ from tempfile import mkdtemp
 from subprocess import check_call
 
 
-class NoCfgError(Exception):
-    def __init__(self, e, cfg_name):
-        super().__init__(e)
+class NoConfigError(Exception):
+    def __init__(self, cfg_name):
+        super().__init__('unable to load configuration file {}'.format(cfg_name))
         self.cfg_name = cfg_name
-
-    def __str__(self):
-        return '\n'.join([
-            'unable to load configuration file {}:'.format(self.cfg_name),
-            super().__str__()
-        ])
 
 
 class Hud:
@@ -35,17 +29,20 @@ class Hud:
             with open(os.path.join(cfg_name)) as f:
                 exec(compile(f.read(), cfg_name, 'exec'), self.config)
         except Exception as e:
-            raise NoCfgError(e, cfg_name)
+            raise NoConfigError(cfg_name) from e
 
         if self.config.get('VPK', True):
             if vpk_exe is None:
                 raise ValueError('no vpk executable')
             self.vpk_exe = vpk_exe
 
-        self.zip_url = 'https://github.com/{}/archive/master.zip'.format(
-            self.config['GITHUB']
+        ref = self.config.get('REF', 'master')
+
+        self.zip_url = 'https://github.com/{}/archive/{}.zip'.format(
+            self.config['GITHUB'],
+            ref
         )
-        self.repo_name = self.config['GITHUB'].split('/')[-1] + '-master'
+        self.repo_name = self.config['GITHUB'].split('/')[-1] + '-' + ref
 
     def here(self, path):
         return os.path.join(self.working, os.path.normpath(path))
@@ -118,35 +115,51 @@ class Hud:
                     )):
                         os.rmdir(source)
 
-        for source, dest in map(
-            lambda pair: map(self.here, pair),
-            self.config.get('MOVE', [])
-        ):
-            if os.path.isdir(dest):
-                dest = os.path.join(dest, os.path.basename(source))
-            os.replace(source, dest)
+        for source, dest in self.config.get('MOVE', []):
+            try:
+                srcpath = self.here(source)
+                destpath = self.here(dest)
+                if os.path.isdir(dest):
+                    destpath = os.path.join(dest, os.path.basename(srcpath))
+                os.replace(srcpath, destpath)
+            except Exception as e:
+                print('Warning: Failed to apply MOVE "{}" -> "{}": {}'.format(source, dest, e))
 
         for filename, dest in self.config.get('INSTALL', []):
-            filename = os.path.normpath(filename)
-            dest = self.here(dest)
-            if os.path.isfile(dest):
-                os.unlink(dest)
-            if os.path.isdir(filename):
-                shutil.copytree(filename, dest)
-            else:
-                shutil.copy2(filename, dest)
+            try:
+                filepath = os.path.normpath(filename)
+                destpath = self.here(dest)
+                if os.path.isfile(destpath):
+                    os.unlink(destpath)
+                if os.path.isdir(filepath):
+                    shutil.copytree(filepath, destpath)
+                else:
+                    shutil.copy2(filepath, destpath)
+            except Exception as e:
+                print('Warning: Failed to apply INSTALL "{}" -> "{}": {}'.format(filename, dest, e))
+
 
         for script, repl, filename in self.config.get('REGEX', []):
-            with open(self.here(filename), 'r') as f:
-                contents = f.read()
-            with open(self.here(filename), 'w') as f:
-                f.write(re.sub(script, repl, contents))
+            try:
+                filepath = self.here(filename)
+                with open(filepath, 'r') as f:
+                    contents = f.read()
+                contents = re.sub(script, repl, contents)
+                with open(filepath, 'w') as f:
+                    f.write(contents)
+            except Exception as e:
+                print('Warning: Failed to apply REGEX "{}" -> "{}" on {}: {}'.format(script, repl, filename, e))
 
-        for filename in map(self.here, self.config.get('DELETE', [])):
-            if os.path.isdir(filename):
-                shutil.rmtree(filename)
-            elif os.path.exists(filename):
-                os.unlink(filename)
+        for filename in self.config.get('DELETE', []):
+            try:
+                filepath = self.here(filename)
+                if os.path.isdir(filepath):
+                    shutil.rmtree(filepath)
+                elif os.path.exists(filepath):
+                    os.unlink(filepath)
+            except Exception as e:
+                print('Warning: Failed to apply DELETE "{}": {}'.format(filename, e))
+
 
     def install(self):
         # configure can be intentionally skipped by calling fetch and install.
@@ -190,4 +203,4 @@ class Hud:
                 else:
                     os.unlink(dest)
 
-__all__ = ['Hud', 'NoCfgError']
+__all__ = ['Hud', 'NoConfigError']
