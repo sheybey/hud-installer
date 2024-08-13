@@ -47,7 +47,7 @@ if WINDOWS:
 else:
     STEAMAPPS = os.path.join(
         os.environ['HOME'],
-        '.steam', 'steam', 'SteamApps'
+        '.steam', 'steam', 'steamapps'
     )
 
 # default path to TF2
